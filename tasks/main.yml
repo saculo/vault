@@ -1,0 +1,58 @@
+---
+# tasks file for vault
+
+- name: Run Vault
+  hosts: localhost
+
+  vars:
+    vault_port: 8200
+    vault_api: "http://vault:8200"
+    vault_cluster: "http://vault:8201"
+
+  tasks:
+    - name: Kill current Vault's services
+      community.docker.docker_compose_v2:
+        project_src: ../files
+        state: absent
+    - name: Generate TLS certs
+      openssl_certificate:
+
+    - name: Template Vault configuration file
+      template:
+        src: ../templates/vault.hcl.j2
+        dest: ./files/config/vault.hcl
+      vars:
+        vault_api_addr: "{{ vault_api }}"
+        vault_cluster_addr: "{{ vault_cluster }}"
+    - name: Start Vault's service
+      community.docker.docker_compose_v2:
+        project_src: ../files
+        state: present
+      register: output
+    - name: Wait for Vault to be ready
+      wait_for:
+        port: "{{ vault_port }}"
+        delay: 10
+        timeout: 30
+      environment:
+        VAULT_ADDR: "{{ inventory_hostname }}:{{ vault_port }}"
+    - name: Initialize Vault
+      shell: "vault operator init -key-shares=1 -key-threshold=1"
+      register: vault_init_result
+    - name: Parse root token from initialization result
+      set_fact:
+        vault_root_token: "{{ vault_init_result.stdout | from_json | json_query('root_token') }}"
+      when: vault_init_result.changed
+    - name: Parse unseal key from initialization result
+      set_fact:
+        vault_unseal_key: "{{ vault_init_result.stdout | from_json | json_query('unseal_keys_b64[0]') }}"
+      when: vault_init_result.changed
+    - name: Unseal Vault
+      shell: "vault operator unseal {{ vault_unseal_key }}"
+      when: vault_unseal_key is defined
+    - name: Revoke Root Token
+      shell: "vault token revoke {{ vault_root_token }}"
+      when: vault_root_token is defined
+    - name: Debug
+      ansible.builtin.debug:
+        var: output

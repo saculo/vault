@@ -1,0 +1,17 @@
+services:
+  vault:
+    image: hashicorp/vault:latest
+    ports:
+      - 8200:8200
+    volumes:
+      - ./config:/vault/config:rw
+      - /vault/data
+      - /etc/vault/logs
+    privileged: true
+    cap_add:
+      - IPC_LOCK
+    container_name: vault
+    entrypoint: "vault server -config=/vault/config"
+
+volumes:
+  vault-data:

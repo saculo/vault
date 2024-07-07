@@ -1,0 +1,11 @@
+listener "tcp" {
+  address = "0.0.0.0:8200"
+  tls_cert_file = "{{ vault_cert }}"
+  tls_key_file = "{{ vault_key }}
+}
+
+ui = "true"
+log_level = "INFO"
+
+api_addr = {{ vault_api_addr }}
+cluster_addr = {{ vault_cluster_addr }}
